@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}Delivery Delay Estimator{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Martian+Mono:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     {% block head %}{% endblock %}
@@ -11,7 +14,7 @@
 <body>
     <header class="navbar">
         <div class="nav-container">
-            <a href="/" class="brand">Delivery Delay Estimator</a>
+            <a href="/" class="brand">Delivery Delay <span class="accent-word">Estimator</span></a>
             <nav class="nav-links">
                 <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Predict</a>
                 <a href="/retrain" class="nav-link {% if request.path == '/retrain' %}active{% endif %}">Retrain</a>
@@ -20,15 +23,18 @@
         </div>
     </header>
 
-    <main class="main-content">
+    <main class="main-content{% block main_class %}{% endblock %}">
         {% block content %}{% endblock %}
     </main>
 
     <footer class="footer">
-        AI/ML lab mini project &middot; Kaggle food delivery dataset, 45,584 orders
+        <span class="footer-line">AI/ML lab mini project</span>
+        <span class="footer-sep">&middot;</span>
+        <span class="footer-line">Kaggle food delivery dataset, 45,584 orders</span>
     </footer>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/motion.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 
+
 function themeColor(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
@@ -7,11 +8,16 @@ function themeColor(name) {
 function plot(id, data, layout) {
     const muted = themeColor('--muted');
     const line = themeColor('--line');
-    const axis = { gridcolor: line, zerolinecolor: line, linecolor: line };
+    const axis = {
+        gridcolor: line, zerolinecolor: line, linecolor: themeColor('--ink'),
+        tickfont: { family: themeColor('--mono') || 'monospace', size: 10.5, color: muted },
+        titlefont: { family: themeColor('--sans') || 'sans-serif', size: 12, color: muted },
+    };
     const base = {
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         font: { color: muted, family: getComputedStyle(document.body).fontFamily, size: 12 },
+        hovermode: 'closest',
         margin: { l: 50, r: 16, t: 10, b: 44 },
         showlegend: false,
     };
@@ -89,6 +95,7 @@ function runPrediction() {
 function showEstimate(pred) {
     $('pred-minutes').textContent = pred.predicted_minutes;
     $('pred-prob').textContent = pred.delay_probability_pct;
+    if (window.MotionHooks) window.MotionHooks.predicted();
 
     const tier = pred.delay_risk_tier.toLowerCase();
     const colors = { low: '--good', moderate: '--warn', high: '--bad' };
@@ -193,6 +200,25 @@ function initRouteMap(map) {
     });
 }
 
+// Reveal the A* path segment by segment (full tier only; lite draws it at once)
+function animateRoute(coords) {
+    const full = document.documentElement.classList.contains('tier-full') && !prefersReducedMotion();
+    if (!full || coords.length < 3) {
+        routeMap.getSource('astar').setData(line(coords));
+        return;
+    }
+    const start = performance.now();
+    const duration = 900;
+    const step = now => {
+        const t = Math.min(1, (now - start) / duration);
+        const e = 1 - Math.pow(1 - t, 3);
+        const n = Math.max(2, Math.round(coords.length * e));
+        routeMap.getSource('astar').setData(line(coords.slice(0, n)));
+        if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
 function drawRouteMap(map, astar, greedy, stops) {
     if (!routeMap) initRouteMap(map);
     if (!mapReady) {
@@ -204,7 +230,7 @@ function drawRouteMap(map, astar, greedy, stops) {
         features: map.edges.map(e => Object.assign(line(e.coords), { properties: { traffic: e.traffic } })),
     });
     routeMap.getSource('greedy').setData(line(greedy.coords));
-    routeMap.getSource('astar').setData(line(astar.coords));
+    animateRoute(astar.coords);
 
     const onPath = new Set(astar.path);
     // Toggle only our classes; MapLibre keeps its positioning classes on the same element
@@ -274,6 +300,47 @@ function showRetrainResult(data) {
     $('reg-mae').textContent = reg.mae + ' min';
     $('reg-rmse').textContent = reg.rmse + ' min';
     $('reg-r2').textContent = reg.r2_score;
+
+    // Briefly highlight what changed so the update is easy to spot
+    ['reg-mae', 'reg-rmse', 'reg-r2'].forEach(id => flashOnce($(id)));
+    $('metrics-table-body').querySelectorAll('tr').forEach(flashOnce);
+}
+
+function flashOnce(el) {
+    el.classList.remove('flash');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('flash');
+    el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true });
+}
+
+/* Motion helpers */
+
+const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isDark = () => false;
+
+// Ease a single trace from its start to its final values over `duration` ms
+function animateTrace(id, traceIndex, key, buildAt, duration = 900) {
+    if (prefersReducedMotion() || !$(id)) return;
+    const start = performance.now();
+    const step = now => {
+        const t = Math.min(1, (now - start) / duration);
+        const e = 1 - Math.pow(1 - t, 3);
+        Plotly.restyle(id, { [key]: [buildAt(e)] }, [traceIndex]);
+        if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
+// Run `fn` once, when the element first scrolls into view
+function onFirstView(el, fn) {
+    if (!('IntersectionObserver' in window)) return fn();
+    const io = new IntersectionObserver((entries, obs) => {
+        if (entries.some(e => e.isIntersecting)) {
+            obs.disconnect();
+            fn();
+        }
+    }, { threshold: 0.25 });
+    io.observe(el);
 }
 
 /* How it works page */
@@ -283,18 +350,31 @@ function initExplainCharts(metrics, clusters, featureImportances) {
     const ink = themeColor('--ink');
     const teal = themeColor('--teal');
     const violet = themeColor('--violet');
+    const gold = themeColor('--saffron');
+    const green = themeColor('--green');
     const rf = metrics.classification[0];
+    const dark = isDark();
+    const motion = !prefersReducedMotion();
 
+    /* Confusion matrix: clear light-to-deep teal scale, gaps between cells,
+       and text colour chosen per cell so every count stays readable */
     const cm = rf.confusion_matrix;
     const labels = ['On time', 'Late'];
+    const values = [cm.tn, cm.fp, cm.fn, cm.tp];
+    const maxCount = Math.max(...values);
+    const scale = [[0, '#eaede4'], [1, ink]];
+    const cellText = n => (n / maxCount > 0.55 ? '#fbfcf7' : ink);
     plot('confusion-matrix-chart', [{
         z: [[cm.tn, cm.fp], [cm.fn, cm.tp]],
         x: labels,
         y: labels,
         type: 'heatmap',
-        colorscale: [[0, themeColor('--paper')], [1, teal]],
+        colorscale: scale,
+        zmin: 0,
+        zmax: maxCount,
+        xgap: 4,
+        ygap: 4,
         showscale: false,
-        opacity: 0.75,
         hoverinfo: 'skip',
     }], {
         margin: { l: 80, r: 16, t: 10, b: 44 },
@@ -304,30 +384,60 @@ function initExplainCharts(metrics, clusters, featureImportances) {
             ['On time', 'On time', 'TN', cm.tn], ['Late', 'On time', 'FP', cm.fp],
             ['On time', 'Late', 'FN', cm.fn], ['Late', 'Late', 'TP', cm.tp],
         ].map(([x, y, tag, n]) => ({
-            x, y, text: `${tag}<br><b>${n}</b>`, showarrow: false, font: { color: ink, size: 14 },
+            x, y,
+            text: `${tag}<br><b>${n.toLocaleString()}</b>`,
+            showarrow: false,
+            font: { color: cellText(n), size: 14 },
         })),
     });
 
+    /* ROC: draws from the origin once, on page load */
+    const rocX = rf.roc_curve.map(p => p.fpr);
+    const rocY = rf.roc_curve.map(p => p.tpr);
     plot('roc-curve-chart', [
         { x: [0, 1], y: [0, 1], mode: 'lines', line: { dash: 'dot', color: themeColor('--muted'), width: 1 }, hoverinfo: 'skip' },
-        { x: rf.roc_curve.map(p => p.fpr), y: rf.roc_curve.map(p => p.tpr), mode: 'lines', line: { color: accent, width: 2.5 } },
+        { x: motion ? [] : rocX, y: motion ? [] : rocY, mode: 'lines', line: { color: accent, width: 2.5 } },
     ], {
         xaxis: { title: 'False positive rate', range: [0, 1] },
         yaxis: { title: 'True positive rate', range: [0, 1.02] },
     });
+    if (motion) {
+        // Thin the curve for the animation (shape is unchanged) and redraw once per frame
+        const step = Math.max(1, Math.ceil(rocX.length / 250));
+        const xs = rocX.filter((_, i) => i % step === 0 || i === rocX.length - 1);
+        const ys = rocY.filter((_, i) => i % step === 0 || i === rocY.length - 1);
+        const start = performance.now();
+        const frame = now => {
+            const t = Math.min(1, (now - start) / 1000);
+            const k = Math.max(2, Math.round(xs.length * (1 - Math.pow(1 - t, 3))));
+            Plotly.restyle('roc-curve-chart', { x: [xs.slice(0, k)], y: [ys.slice(0, k)] }, [1]);
+            if (t < 1) requestAnimationFrame(frame);
+            else Plotly.restyle('roc-curve-chart', { x: [rocX], y: [rocY] }, [1]);
+        };
+        requestAnimationFrame(frame);
+    }
 
+    /* K-Means elbow: the WCSS curve rises into place when scrolled into view */
+    const elbowX = clusters.elbow_data.map(d => d.k);
+    const elbowY = clusters.elbow_data.map(d => d.inertia);
+    const elbowSize = clusters.elbow_data.map(d => (d.k === 3 ? 12 : 7));
+    const elbowColor = clusters.elbow_data.map(d => (d.k === 3 ? accent : violet));
     plot('elbow-chart', [{
-        x: clusters.elbow_data.map(d => d.k),
-        y: clusters.elbow_data.map(d => d.inertia),
+        x: elbowX,
+        y: motion ? elbowY.map(() => 0) : elbowY,
         mode: 'lines+markers',
         line: { color: violet, width: 2 },
-        marker: { size: clusters.elbow_data.map(d => (d.k === 3 ? 12 : 7)), color: clusters.elbow_data.map(d => (d.k === 3 ? accent : violet)) },
+        marker: { size: elbowSize, color: elbowColor },
     }], {
         xaxis: { title: 'k', dtick: 1 },
         yaxis: { title: 'WCSS' },
     });
+    if (motion) {
+        onFirstView($('elbow-chart'), () => animateTrace('elbow-chart', 0, 'y', e => elbowY.map(v => v * e), 1100));
+    }
 
-    const palette = [themeColor('--green'), themeColor('--saffron'), violet];
+    /* PCA scatter: three cluster colours, coloured by rank */
+    const palette = [green, gold, violet];
     plot('pca-scatter-chart', clusters.profiles.map((prof, rank) => {
         const pts = clusters.pca_points.filter(p => p.cluster === prof.cluster_id);
         return {
@@ -347,9 +457,11 @@ function initExplainCharts(metrics, clusters, featureImportances) {
         yaxis: { title: 'PC 2' },
     });
 
+    /* Feature importance: bars grow from zero */
     const top = featureImportances.slice(0, 8).reverse();
+    const barValues = top.map(f => f.importance);
     plot('feature-importance-chart', [{
-        x: top.map(f => f.importance),
+        x: motion ? barValues.map(() => 0) : barValues,
         y: top.map(f => f.feature.replace(/_/g, ' ')),
         type: 'bar',
         orientation: 'h',
@@ -359,4 +471,16 @@ function initExplainCharts(metrics, clusters, featureImportances) {
         xaxis: { title: 'Importance' },
         yaxis: { automargin: true },
     });
+    if (motion) {
+        onFirstView($('feature-importance-chart'), () => animateTrace('feature-importance-chart', 0, 'x', e => barValues.map(v => v * e), 900));
+    }
 }
+
+// Keep every Plotly chart sized to its container (debounced)
+let plotResizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(plotResizeTimer);
+    plotResizeTimer = setTimeout(() => {
+        document.querySelectorAll('.js-plotly-plot').forEach(el => Plotly.Plots.resize(el));
+    }, 150);
+});

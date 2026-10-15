@@ -78,6 +78,57 @@ Stop the server with `Ctrl+C`. Next time, just activate the virtual environment 
 
 ---
 
+## Frontend
+
+The interface is an editorial design: sage-stone ground, forest ink type, one rationed tangerine accent, square corners, 1.5px ink rules, and a dark forest loam ground for the scroll stages. Only the frontend changed in this redesign. `web/app.py`, `src/`, the data and the models are untouched.
+
+**Design tokens** (`web/static/css/style.css`, `:root`)
+- Palette: sage-stone `#eaede4`, forest ink `#13231b`, tangerine `#e2682e` (the variable is still named `--red`), deep tangerine `#a8461c`, paper `#fbfcf7`, forest loam `#15291f`, saffron `#c98a12`, green `#3e7a56`. These were chosen by the assistant. To change the theme, edit the values in the `:root` block.
+- Type: Anton for display headings, Inter for body text, Martian Mono for labels, numbers and status lines. Fonts load from Google Fonts with system fallbacks.
+- Chart and route colours reuse the same variables, so Plotly and the map follow the palette.
+
+**Predict page (`/`)** opens with five full-width stages, then the working tool:
+1. Hero: a poster lockup over drifting red strokes. Three variables move the title (vertical position, scale, opacity).
+2. Manifesto: one sentence that fills from the bottom as you scroll.
+3. Method rail: six cards that slide sideways with scroll position.
+4. Dispatch slip: a paper slip that prints itself, with cues that light up one at a time and live values from the prediction.
+5. Season band: a contour plate with three chapters that highlight in turn.
+
+The tool (form, prediction, route map, classifier votes, A* table) follows and works exactly as before.
+
+**Motion**
+- Only `transform` and `opacity` animate, plus `clip-path` for the manifesto fill.
+- Headings split into words that rise in sequence. Cards and rows fade in as they scroll into view.
+- Scroll-linked values are written to CSS variables by one passive scroll listener, batched with `requestAnimationFrame` (`web/static/js/motion.js`).
+- Canvas loops run only while their section is on screen and the tab is visible.
+- Charts draw in once when they first appear. The A* route draws segment by segment on each new result.
+
+**Performance tiers**
+- On load the page picks `tier-full` (2 or more CPU cores and 2 GB or more memory, where the browser reports them) or `tier-lite`.
+- If the first second of frames averages over 24 ms, full mode switches to lite.
+- Lite mode removes pinning and canvas loops, and shows the stages as a normal page. Reveals and the route stay on.
+- Reduced motion (`prefers-reduced-motion: reduce`) shows the final state of everything with no movement.
+- The device pixel ratio is capped at 1.5 in full mode and 1 in lite mode.
+
+**Testing modes**
+- `?tier=full` forces full mode.
+- `?tier=lite` forces lite mode.
+- `?motion=reduced` forces reduced motion.
+
+**Charts and map**
+- Plotly charts use the shared palette and Martian Mono tick labels. Legends toggle traces, and hover labels are on.
+- Charts resize on window resize (debounced).
+- The Models page charts draw once and update through `Plotly.react`.
+
+**Responsive**
+- Desktop: two columns on Predict and Retrain, a grid of charts on Models.
+- Tablet and phone: single column. Tables scroll inside their own container. Tap targets are at least 44px.
+- The top bar wraps on narrow screens.
+
+**Running locally:** `python run.py`, then open http://127.0.0.1:5000. Use `?tier=lite` or `?motion=reduced` to check the lighter modes.
+
+---
+
 ## What's inside (syllabus mapping)
 
 - **Module 2, search**

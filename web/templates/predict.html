@@ -2,6 +2,8 @@
 
 {% block title %}Predict | Delivery Delay Estimator{% endblock %}
 
+{% block main_class %} is-home{% endblock %}
+
 {% block head %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css"
       integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
@@ -10,8 +12,167 @@
 {% endblock %}
 
 {% block content %}
+<!-- 1. Hero: poster lockup on the dark loam ground -->
+<section class="stage stage-dark" data-stage="hero" aria-label="Introduction">
+    <div class="stage-inner">
+        <canvas class="stage-canvas" data-field aria-hidden="true"></canvas>
+        <div class="stage-content">
+            <div class="hero-lockup">
+                <p class="hero-kicker label">Food delivery &middot; Mumbai &middot; 45,584 orders</p>
+                <div class="hero-title">
+                    <span class="poster-line" style="--chars: 14">Delivery Delay</span>
+                    <span class="poster-line red" style="--chars: 9">Estimator</span>
+                </div>
+            </div>
+        </div>
+        <div class="stage-meta">
+            <span>Linear regression</span>
+            <span>Random forest &middot; A*</span>
+            <span>Scroll</span>
+        </div>
+    </div>
+</section>
+
+<!-- 2. Manifesto: a sentence that fills from the bottom as you scroll -->
+<section class="stage stage-cream" data-stage="manifesto" aria-label="Summary">
+    <div class="stage-inner">
+        <div class="manifesto-wrap">
+            <div class="manifesto-stack">
+                <p class="manifesto-base">Every order gets a time estimate, a delay risk, and the fastest route.</p>
+                <p class="manifesto-fill" aria-hidden="true">Every order gets a time estimate, a delay risk, and the fastest route.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 3. Method rail: six cards that slide sideways as you scroll -->
+<section class="stage stage-cream" data-stage="rail" aria-label="Methods">
+    <div class="stage-inner rail-stage">
+        <div class="rail-head">
+            <p class="label muted">Models and methods</p>
+            <h2 data-split>Six methods, one trip</h2>
+        </div>
+        <div class="rail-viewport">
+            <div class="rail-track">
+                <article class="rail-card">
+                    <canvas class="rail-plate" data-plate="grid" data-seed="1" aria-hidden="true"></canvas>
+                    <div class="rail-body">
+                        <h3 class="rail-title">Linear regression</h3>
+                        <p class="rail-meta label">Module 3 &middot; Regression</p>
+                        <p class="rail-value">MAE 4.93 min</p>
+                    </div>
+                </article>
+                <article class="rail-card">
+                    <canvas class="rail-plate" data-plate="contours" data-seed="2" aria-hidden="true"></canvas>
+                    <div class="rail-body">
+                        <h3 class="rail-title">Random forest</h3>
+                        <p class="rail-meta label">Module 3 &middot; Ensemble</p>
+                        <p class="rail-value">90.87% accuracy</p>
+                    </div>
+                </article>
+                <article class="rail-card">
+                    <canvas class="rail-plate" data-plate="dots" data-seed="3" aria-hidden="true"></canvas>
+                    <div class="rail-body">
+                        <h3 class="rail-title">Decision tree</h3>
+                        <p class="rail-meta label">Module 3 &middot; Gini and entropy</p>
+                        <p class="rail-value">90.36% accuracy</p>
+                    </div>
+                </article>
+                <article class="rail-card">
+                    <canvas class="rail-plate" data-plate="grid" data-seed="4" aria-hidden="true"></canvas>
+                    <div class="rail-body">
+                        <h3 class="rail-title">Logistic regression</h3>
+                        <p class="rail-meta label">Module 3 &middot; Classifier</p>
+                        <p class="rail-value">Late or on time</p>
+                    </div>
+                </article>
+                <article class="rail-card">
+                    <canvas class="rail-plate" data-plate="contours" data-seed="5" aria-hidden="true"></canvas>
+                    <div class="rail-body">
+                        <h3 class="rail-title">A* routing</h3>
+                        <p class="rail-meta label">Module 2 &middot; Search</p>
+                        <p class="rail-value">30.0 km &middot; 85.8 min</p>
+                    </div>
+                </article>
+                <article class="rail-card">
+                    <canvas class="rail-plate" data-plate="dots" data-seed="6" aria-hidden="true"></canvas>
+                    <div class="rail-body">
+                        <h3 class="rail-title">Clustering</h3>
+                        <p class="rail-meta label">Module 4 &middot; K-Means and PCA</p>
+                        <p class="rail-value">k = 3 groups</p>
+                    </div>
+                </article>
+            </div>
+        </div>
+        <div class="rail-progress"><span></span></div>
+    </div>
+</section>
+
+<!-- 4. Dispatch slip: prints itself as you scroll -->
+<section class="stage stage-dark" data-stage="packet" aria-label="Dispatch slip">
+    <div class="stage-inner artifact-stage">
+        <div class="artifact-grid">
+            <div class="artifact-copy">
+                <p class="label" style="color: rgba(255, 253, 248, .7)">Dispatch</p>
+                <h2 data-split>Every order leaves with a <span class="accent-word">slip</span></h2>
+                <ol class="cues">
+                    <li class="cue">Order received</li>
+                    <li class="cue">Time estimated</li>
+                    <li class="cue">Risk scored</li>
+                    <li class="cue">Route planned</li>
+                </ol>
+                <p id="route-status" class="route-status" aria-live="polite">Awaiting order</p>
+                <p id="packet-phase" class="label" style="color: rgba(255, 253, 248, .6); margin-top: 8px">Step 1 of 4</p>
+            </div>
+            <div class="slip">
+                <p class="slip-head">Dispatch slip &middot; Mumbai</p>
+                <p class="slip-name">Dispatch<br>slip</p>
+                <div class="slip-plate"><canvas data-plate="dots" data-seed="7" aria-hidden="true"></canvas></div>
+                <div class="slip-meter"><span></span></div>
+                <div class="slip-row"><b>Order ID</b><span class="val">FD-2610</span></div>
+                <div class="slip-row"><b>Estimated time</b><span id="slip-time" class="val">pending</span></div>
+                <div class="slip-row"><b>Delay risk</b><span id="slip-risk" class="val red">pending</span></div>
+                <div class="slip-perf"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 5. Season band: contour plate and three chapters -->
+<section class="stage stage-cream" data-stage="season" aria-label="How it works">
+    <div class="stage-inner season-stage">
+        <canvas class="stage-canvas" data-contours aria-hidden="true"></canvas>
+        <div class="season-head">
+            <p class="label muted">How it works</p>
+            <h2 data-split>From order to route</h2>
+        </div>
+        <div class="season-foot">
+            <div class="chapters">
+                <div class="chapter">
+                    <p class="label" style="color: var(--red)">01</p>
+                    <h3>Ingest</h3>
+                    <p>Each order becomes one row: distance, traffic, weather, rider and vehicle.</p>
+                </div>
+                <div class="chapter">
+                    <p class="label" style="color: var(--red)">02</p>
+                    <h3>Predict</h3>
+                    <p>Linear regression estimates minutes, and four classifiers vote on delay.</p>
+                </div>
+                <div class="chapter">
+                    <p class="label" style="color: var(--red)">03</p>
+                    <h3>Route</h3>
+                    <p>A* plans the trip over real streets, with traffic and delay risk as costs.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 6. The working tool, unchanged in function -->
+<div class="wrap tool" id="tool">
+<div class="tool-divider"></div>
 <div class="page-header">
-    <h1>Delivery prediction</h1>
+    <h1 data-split>Delivery prediction</h1>
     <p class="page-description">
         Linear regression predicts delivery time. Four classifiers predict whether it exceeds 30 minutes.
         A* plans the trip across Mumbai.
@@ -184,6 +345,7 @@
             </p>
         </div>
     </div>
+</div>
 </div>
 {% endblock %}
 
